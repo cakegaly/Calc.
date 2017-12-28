@@ -27,6 +27,3 @@ calc.
                 = -99.221888
         calc. > Exit
         good bye!
-## by
-[kleecider](https://github.com/kleecider)
-# calc 

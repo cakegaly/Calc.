@@ -1,17 +1,7 @@
-/**************************************************
-*	calc.c
-*	April  25  2016
-*
-*	Toshiki Okazaki (@kleecider)
-*
-*	Copyright (c) 2016, Toshiki Okazaki, Okayama University
-*	All Rights Reserved.
-*
-***************************************************/
-
 #include <stdio.h>
 #include <unistd.h> //write(), close()
 #include <fcntl.h> // O_RDONLY for open()
+#include "calc.h"
 
 #define D() //printf("LINE: %d\n",__LINE__)
 #define MAX_LINE_LEN 10000   //入力最大文字数
@@ -21,78 +11,8 @@
 
 int my_strcmp(const char *s1, const char *s2);
 
-/* define.h */
-/***************************************************/
-/* トークンのタイプ */
-typedef enum {
-	INTEGER,      /* 整数		        00	*/
-	DOUBLE,        /* 少数	        01	*/
-	ADD,          /* 加算演算子 +	        02	*/
-	SUB,          /* 減算演算子 -           03      */
-	MUL,          /* 乗算演算子 *           04      */
-	DIV,          /* 除算演算子 /           05      */
-	REST,         /* 余り %                 06      */
-	RBL,          /* 丸括弧 (               07     */
-	RBR,          /* 丸括弧 )               08     */
-	GCD,          /* 最大公約数             09     */
-	LCM,          /* 最小公倍数             10   */
-	EXP,          /* 指数 exp()             11     */
-	LOG,          /* 常用対数 log           12*/
-	LN,           /* 自然対数               13 */
-	SIN,          /* 正弦関数 sin           14   */
-	COS,          /* 余弦関数 cos           15   */
-	TAN,          /* 傾き     tan           16 */
-	SQRT,         /* 平方根                 17 */
-	PI,           /* 円周率                 18 */
-	E,            /* 常用対数の底           19 */
-	LAST,         /* 直前の解               20 */
-	FAC,          /* 階上 !                 21 */
-	POW,          /* 累乗                   22 */
-	ERROR,        /* エラー対処             23     */
-	INIT,         /*空読み　24　*/
-	DOLLAR,       /* '$' 25*/
-} TokenType;
-
-/* 状態のタイプ */
-typedef enum {
-  Init,		/* 初期状態			00*/
-  Int,		/* 整数状態			01*/
-  Double,	/* 少数状態			02*/
-  Zero,		/* 整数0状態		03*/
-  Symbol,	/* 符号状態			04*/
-  Alpha,	/* 英単語状態		05*/
-  Final,	/* 終了状態			06*/
-  Error,	/* エラー状態	07*/
-  Error2,   /* .におけるエラー状態  08*/
-} StateType;
-
-/* 文字のタイプ */
-typedef enum {
-  zero,         /* 数字 0                     00 */
-  number,	    /* 数字 1~9				      01*/
-  dot,          /* 点 .                       02*/
-  others,       /* その他 ()+-* /%!           03*/
-  alpha,        /* 英字 a～z, A～Z            04*/
-  delim,	    /* 区切り記号(空白,TAB,改行)  05*/
-  error,        /* 未定義文字                 06*/
-} CharType;
-
-typedef enum {
-	ot_LPar, /* （        00*/
-	ot_RPar, /* ）        01*/
-	ot_Fac, /*  ! 02 */
-	//ot_PlusMinus1, /* +2 -3 03*/
-	ot_Pow, /*  ^ 04*/
-	ot_Other, /*  exp ln log sin cos tan sqrt 05*/
-	ot_MultDiv, /*  * / % gcd lcm  06*/
-	ot_PlusMinus2, /* 3+2 5-3 07*/
-	ot_Dara, /* $ 08*/
-} OpeType;
-/********************************************************/
-
-/* lex.c */
-//////////////////////////////////////////////////////////
-/* 遷移表の定義 */
+/***** 字句解析 *****/
+/* 遷移表 */
 static StateType table[6][8] = {
 	/* 0  1 ~ 9  .  +/-*()!%   a ~ z A ~ Z */
   {Zero,Int,Error2,Symbol,Alpha,Final,Error},/* Init: 初期状態 */
@@ -103,21 +23,23 @@ static StateType table[6][8] = {
   {Final,Final,Final,Final,Alpha,Final,Error},/* Alpha:英語 */
 };
 
-/* 文字を入力とし,文字の種類を返す関数 */
-static CharType charToCharType(int c){
-	if( c == '0' ) return zero;
-	if( ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') ) return alpha;
-	if( c == '.') return dot;
-	if( c == '%' || c == '!' || c == '(' || c == ')' || c == '^' ||
-      c == '+' || c == '-' || c == '*' || c == '/' ) return others;
-	if( '1' <= c && c <= '9' ) return number;
-	if( c == ' ' || c == '\t' || c == '\n' ||c == EOF || c == '\0') return delim;
+/* 文字を入力とし，文字の種類を返す関数 */
+static CharType charToCharType(int c)
+{
+	if(c == '0') return zero;
+	if(('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')) return alpha;
+	if(c == '.') return dot;
+	if(c == '%' || c == '!' || c == '(' || c == ')' || c == '^' ||
+     c == '+' || c == '-' || c == '*' || c == '/') return others;
+	if('1' <= c && c <= '9') return number;
+	if(c == ' ' || c == '\t' || c == '\n' ||c == EOF || c == '\0') return delim;
 
   return error;
 }
 
-/* 直前の状態と(トークンの)文字列を入力とし,トークンの種類を返す関数 */
-static TokenType whichTokenType(char *s, StateType state){
+/* 直前の状態と(トークンの)文字列を入力とし，トークンの種類を返す関数 */
+static TokenType whichTokenType(char *s, StateType state)
+{
 	if(state == Init) return INIT;
 	if(state == Int) return INTEGER;
 	if(state == Double) return DOUBLE;
@@ -146,11 +68,9 @@ static TokenType whichTokenType(char *s, StateType state){
 
 	return ERROR;
 }
+/***** 字句解析 *****/
 
-//////////////////////////////////////////////////////////
-
-/* oparser.c */
-///////////////////////////////////
+/***** 演算子順位構文解析 *****/
 /* 演算子順位行列 */
 static int orderMatrix[8][9] = {
 /* ( ,), !, ^, etc, *%/, +-, $ */
@@ -164,7 +84,8 @@ static int orderMatrix[8][9] = {
 {-1,9,-1,-1,-1,-1,-1,5},/* $ */
 };
 
-static OpeType typeToOpeType(TokenType type){
+static OpeType typeToOpeType(TokenType type)
+{
 	if(type == ADD || type == SUB) return ot_PlusMinus2;
 	if(type == MUL || type == DIV || type == REST ||
 		type == GCD || type == LCM ) return ot_MultDiv;
@@ -193,15 +114,17 @@ typedef struct node0{
 } TokenSt;
 
 struct node0 token_store[TOKENnum];     // array of token
-int i_for_token=0;         /* 作成したトークン数 */
+int i_for_token=0; /* 作成したトークン数 */
 int Sptr[2];
-int node_stack[2][NODEnum];         /* 作業用スタック，0:数字 1:記号 */
+int node_stack[2][NODEnum];  /* 作業用スタック，0:数字 1:記号 */
 int token_n = 0;       /* トークンを指している場所，指している位置から順に木を作成 */
 int tree_top;		/* 構文木のトップ */
 double last_answer = 0;           /* 前回の答え */
 int error_flag = 0;
 
-char *my_strcpy(char *dest, const char *src){
+/* 以下，printf以外のライブラリ関数の使用を禁止しているためのもの */
+char *my_strcpy(char *dest, const char *src)
+{
 	int i;
 
 	for (i = 0; src[i] != '\0'; i++){
@@ -212,7 +135,8 @@ char *my_strcpy(char *dest, const char *src){
  	return dest;
 }
 
-unsigned int my_strlen(const char *str){
+unsigned int my_strlen(const char *str)
+{
 	unsigned int length = 0;
 	while(*str++ != '\0'){
 		length++;
@@ -220,7 +144,8 @@ unsigned int my_strlen(const char *str){
 	return length;
 }
 
-int my_strcmp(const char *s1, const char *s2){
+int my_strcmp(const char *s1, const char *s2)
+{
 	int i=0;
 
 	for(i=0;*(s1 + i) == *(s2 +i);i++){
@@ -230,22 +155,23 @@ int my_strcmp(const char *s1, const char *s2){
 }
 
 /* 文字列 str 中の文字 c1 を文字 c2 に置き換える */
-int subst(char *str, char c1, char c2){
-    int n=0;
+int subst(char *str, char c1, char c2)
+{
+  int n=0;
 
-    while(*str){
-      if(*str == c1){
-	*str = c2;
-	n++;
-      }
-      str++;
+  while(*str){
+    if(*str == c1){
+      *str = c2;
+	    n++;
     }
-    return n;
+    str++;
+  }
+  return n;
 }
 
 /* 計算式を文字列として扱う */
-int lex(char *line){
-
+int lex(char *line)
+{
 	//static char	FIFO[TOKENMAX];
 	StateType	state, nstate; /* state:今の状態，nstate:次の状態 */
 	CharType ct;
@@ -364,8 +290,8 @@ int lex(char *line){
 	return 0;
 }
 
-int push(int S, int token_n2){
-
+int push(int S, int token_n2)
+{
 	if(Sptr[S] == NODEnum-1){
 		printf("Error:stack overflow");
 		return -1;
@@ -377,7 +303,8 @@ int push(int S, int token_n2){
 }
 
 /* エラーの場合に，負の数を返す */
-int pop(int S){
+int pop(int S)
+{
 	if(Sptr[S] == 0){
 		printf("Error:syntax error\n");
 		return -1;
@@ -388,7 +315,8 @@ int pop(int S){
 
 }
 /* stack のトップに格納されている token の配列の番目 */
-int Top(){
+int Top()
+{
 	if ( Sptr[1] == 0 ){
 		printf("Error:syntax error\n");
 		return -1;
@@ -396,8 +324,8 @@ int Top(){
 	return token_store[node_stack[1][Sptr[1]-1]].num;
 }
 
-int check(){
-
+int check()
+{
 	int order;
 	int top;
 	int N=-1;
@@ -481,8 +409,8 @@ int check(){
 	return -1; /* エラーチェック */
 }
 
-int oparser(){
-
+int oparser()
+{
 	int final;  /* 終了判定用 */
 
 	Sptr[0] = 0;
@@ -522,7 +450,8 @@ int oparser(){
 }
 
 /* 入力から１行で文字列配置lineに格納 */
-int get_line(FILE *fp, char *line){
+int get_line(FILE *fp, char *line)
+{
 	static int fd = 0;
 	int l;
 	if((l=read(fd,line,MAX_LINE_LEN))<0){
@@ -542,8 +471,6 @@ int get_line(FILE *fp, char *line){
   return 1;/*成功*/
 }
 
-
-
 int my_isdigit(int c)
 {
   /* 数字は0以外なら何でも大丈夫 */
@@ -553,39 +480,41 @@ int my_isdigit(int c)
     return 0;
 }
 
-long double my_atof(char *s) {
-    long double type  = 1;
-    long double n = 0;
-    long double i = 1;
-    while(*s == ' ') { s++; }
+long double my_atof(char *s)
+{
+  long double type  = 1;
+  long double n = 0;
+  long double i = 1;
+  while(*s == ' ') { s++; }
 
-    if ( *s == '+' ) {
-        s++;
-    }
-    else if ( *s == '-' ) {
-        s++;
-        type = -1;
-    }
+  if ( *s == '+' ) {
+      s++;
+  }
+  else if ( *s == '-' ) {
+      s++;
+      type = -1;
+  }
 
-    /* 整数部分の処理 */
-    while(my_isdigit(*s)) {
-        n = n * 10 + *s - '0';
-        s++;
-    }
+  /* 整数部分の処理 */
+  while(my_isdigit(*s)) {
+      n = n * 10 + *s - '0';
+      s++;
+  }
 
-    /* 小数点部分の処理 */
-    if ( *s == '.' ) {
-        i = 1;
-        while(my_isdigit(*++s)){
-            n += (*s - '0') * (i*=0.1);
-        }
-    }
+  /* 小数点部分の処理 */
+  if ( *s == '.' ) {
+      i = 1;
+      while(my_isdigit(*++s)){
+          n += (*s - '0') * (i*=0.1);
+      }
+  }
 
-    return n * type;
+  return n * type;
 }
 
-int factorial(int n){
-	if(n<0){
+int factorial(int n)
+{
+	if(n < 0){
 		error_flag = 1;
 		printf("Error:x must be positive number in x!\n\n");
 		return 0.0;
@@ -597,11 +526,11 @@ int factorial(int n){
 		printf("Error:overflow\n\n");
 		return 0.0;
 	}
-
 	return n*factorial(n-1);
 }
 
-long double my_pow(long double x, int n){
+long double my_pow(long double x, int n)
+{
 	int i;
 	long double pow_result = 1;
 
@@ -620,7 +549,8 @@ long double my_pow(long double x, int n){
 	}
 }
 
-long double my_sin(long double x){
+long double my_sin(long double x)
+{
 	int nMAX = 50;
 	int n;
 	long double sum;
@@ -639,11 +569,13 @@ long double my_sin(long double x){
 	return sum;
 }
 
-long double my_cos(long double x){
+long double my_cos(long double x)
+{
     return my_sin(3.14159265358979323846 / 2 - x);
 }
 
-long double my_tan(long double x){
+long double my_tan(long double x)
+{
 	long double cos = my_cos(x);
 	if( cos < 0.000001 && cos > -0.000001){
 		printf("Error:tan((2*n+1)*pi/2) is undefined.(n is integer number)\n\n");
@@ -654,24 +586,25 @@ long double my_tan(long double x){
     return my_sin(x) / my_cos(x);
 }
 
-long double my_sqrt(long double f){
+long double my_sqrt(long double f)
+{
 	long double s = f,t;
 
-	if(f<0){
+	if(f < 0){
 		error_flag = 1;
 		printf("Error:x must be positive number in sqrt(x)\n");
 		return 0.0;
 	}
-	if(f==0) return 0.0;
+	if(f == 0) return 0.0;
 	do{
-		t=s;
-		s=(t+f/t)/2;
-	}while(s<t);
+		t = s;
+		s = (t + f / t) / 2;
+	}while(s < t);
 	return t;
 }
 
-long double calculate(int local_top){
-
+long double calculate(int local_top)
+{
 	long double answer;
 	long double local_left;
 	long double local_right;
@@ -789,11 +722,12 @@ long double calculate(int local_top){
 	return 0;
 }
 
-void cmd_help(){
+void cmd_help()
+{
 	char c = '>';
 	printf("========================COMMAND====================================\n");
-	printf("Help   :print this message.\n");
-	printf("Exit   :exit from this program.\n");
+	printf("help   :print this message.\n");
+	printf("exit   :exit from this program.\n");
 	printf("=======================OPERATOR====================================\n");
 	printf("+,-    :sign or addition, subtraction respectively\n");
 	printf("*,/,%%  :multiplication, division, remainder respectively\n");
@@ -816,17 +750,17 @@ void cmd_help(){
 
 }
 
-int parse_line(char *line){
-
-	int i,j;
-	long double answer=0.0;
+int parse_line(char *line)
+{
+	int i, j;
+	long double answer = 0.0;
 	if(line[0] == '\0') return 0; /* 改行文字のみの場合，スルーする */
 
-	if(my_strcmp(line,"Exit")==0){
-		printf("good bye /~~\n");
+	if(my_strcmp(line,"exit")==0){
+		printf("Good bye.\n");
 		return -1;
 	}
-	if(my_strcmp(line,"Help")==0){
+	if(my_strcmp(line, "help")==0){
 		cmd_help();
 		return 0;
 	}
@@ -837,7 +771,7 @@ int parse_line(char *line){
 			return 0;
 		}
 
-		for(i=0;i<i_for_token-1;i++){
+		for(i = 0; i < i_for_token - 1; i++){
 			if(token_store[i].type == RBL && token_store[i+1].type == RBR){
 				printf("Error:syntax error\n\n");
 				return 0;
@@ -851,14 +785,14 @@ int parse_line(char *line){
 		i_for_token++;
 
 		/* ここで，sin()や exp()等を排除する */
-		for(i=0;i<i_for_token-2;i++){
-			if( (token_store[i].type == SIN && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
-				(token_store[i].type == COS && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
-				(token_store[i].type == TAN && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
-				(token_store[i].type == EXP && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
-				(token_store[i].type == LN && token_store[i+1].type == RBL && token_store[i+2].type == RBR)  ||
-				(token_store[i].type == LOG && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
-				(token_store[i].type == SQRT && token_store[i+1].type == RBL && token_store[i+2].type == RBR)
+		for(i = 0; i < i_for_token - 2; i++){
+			if((token_store[i].type == SIN && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
+			 	 (token_store[i].type == COS && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
+				 (token_store[i].type == TAN && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
+				 (token_store[i].type == EXP && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
+				 (token_store[i].type == LN && token_store[i+1].type == RBL && token_store[i+2].type == RBR)  ||
+				 (token_store[i].type == LOG && token_store[i+1].type == RBL && token_store[i+2].type == RBR) ||
+				 (token_store[i].type == SQRT && token_store[i+1].type == RBL && token_store[i+2].type == RBR)
 			){
 				printf("Error:syntax error\n\n");
 				return 0;
@@ -883,7 +817,7 @@ int parse_line(char *line){
 		/**************************************************/
 		/* '(' の後の +- 処理 */
 		//while(1){
-			for(i=2;i<i_for_token-1;i++){
+			for(i = 2; i < i_for_token - 1; i++){
 				if( (token_store[i-1].type == RBL && token_store[i].type == ADD) ||
 					(token_store[i-1].type == RBL && token_store[i].type == SUB) ){
 
@@ -904,14 +838,14 @@ int parse_line(char *line){
 		//}
 		/////////////////////////////////
 
-		if(oparser()<0){
+		if(oparser() < 0){
 			printf("\n");
 			return 0;
 		}
 
 		//while(1){
-			for (i=1;i<i_for_token;i++){
-				if(	token_store[i].type ==  SIN ||
+			for (i = 1; i < i_for_token; i++){
+				if(token_store[i].type ==  SIN ||
 					token_store[i].type ==  COS ||
 					token_store[i].type ==  TAN ||
 					token_store[i].type ==  EXP ||
@@ -932,8 +866,6 @@ int parse_line(char *line){
 				}
 			}
 		//}
-
-
 
 		if(tree_top < 1){
 			printf("Error:syntax error\n\n");
@@ -968,35 +900,18 @@ int parse_line(char *line){
 	return 0;
 }
 
-int main(int args, char **argv){
+int main(int args, char **argv)
+{
 
   char line[MAX_LINE_LEN + 1];
 	int i;
 	int parse_line_flag = 0;
 
   //D();
-
-	printf("===================================================================\n");
-	printf("|+++++++++++++++++++++++++++++++-----------------------------------\n");
-	printf("|+++++++++++++++++++++++++++++;::----------------------------------\n");
-	printf("|+++++++++++++'`  `'++++++++++:  :---------------------------------\n");
-	printf("|++++++++++++       ++++++++++:  :---------------------------------\n");
-	printf("|+++++++++++    :,  ++++++++++:  :---------------------------------\n");
-	printf("|++++++++++'  `+++++++++''++++:  :---------------------------------\n");
-	printf("|++++++++++`  +++++++:     `++:  :-----:---------------------------\n");
-	printf("|++++++++++   ++++++++  `   '+:  :--'      `)----------------------\n");
-	printf("|++++++++++   ++++++++++++  :+:  :--   ;---------------------------\n");
-	printf("|**********   *********,    :*:  //   /////////////////////////////\n");
-	printf("|**********   '******;      :*:  //   /////////////////////////////\n");
-	printf("|**********'   ******   **  :*:  //   /////////////////////////////\n");
-	printf("|***********    ::` *   **  ,*:  //.   ';./  Y/////,  Y////////////\n");
-	printf("|************       *`      .*:  ////        /////,   Y////////////\n");
-	printf("|*************;`  `;**. `*,.,*;..///////://////////,  /////////////\n");
-	printf("|*******************************///////////////////////////////////\n");
-	printf("|*******************************///////////////////////////////////\n");
-	printf("==================================================================\n");
-	printf("|if you don't know any commands please input \"Help\"\n");
-	printf("==================================================================\n");
+	printf("+==================================================+\n");
+	printf("| Calc. (Simple Console Calculator)                |\n");
+	printf("| If you don't any commands, please input \"help\".  |\n");
+  printf("+==================================================+\n");
 
 	if(write(1,"calc. > ",8)==-1){
 		printf("fail to write/n");
