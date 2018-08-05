@@ -1,28 +1,12 @@
-calc.
-====
+# Calc.
+- Simple console calculator
+- Without using standard C library functions other than printf
 
-## 概要
-* 電卓プログラム
-* printf 以外の標準ライブラリ関数は，使用していない．
+## Cautions when using
+- The range of input and output is |x|<10^10 && |x|>=10^(-6).
+- If x or y must be integer but decimal, they are rounded down to int.
 
-## 動作確認環境
-* FreeBSD 4.3-RELEASE において，gcc-2.95.3 でコンパイルし，動作することを確認している．
-* macOS Sierra 10.12.6 において，gcc-4.2.1 でコンパイルし，動作することを確認している．
-
-## 入力と出力
-入力は，標準入力のみ可能である．  
-パイプによるファイルからの入力の場合，最初の 1 行のみを入力として受け取る．  
-出力は，すべて標準出力で行う．  
-その他の詳しい仕様については，help コマンドを参照されたい．
-
-##### コマンド一覧
-
-|  コマンド文字列  |  機能  |
-| ---- | ---- |
-|  help  |  本プログラムの仕様を表示する．  |
-|  exit  |  本プログラムを終了する．  |
-
-## 使用例
+## Using Example
         calc. > -1+(+2)*3/(5%4)+sin(pi/2)-cos(pi)+tan(5*pi/4)-sqrt(4)+exp(2)+last+e^2-5!
                 = -99.221888
         calc. > exit
